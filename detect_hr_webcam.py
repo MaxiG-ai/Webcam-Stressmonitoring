@@ -13,7 +13,13 @@ face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
 
 def apply_ff(data, sample_frequency):
-    
+    """
+    Applies a forward-backward digital filter using cascaded second-order sections.
+
+    :param data: the data
+    :param sample_frequency: the sample frequency
+    :return: the filtered data
+    """
     if sample_frequency > 3:
         sos = sig.iirdesign(
             [.66, 3.0],
@@ -29,6 +35,13 @@ def apply_ff(data, sample_frequency):
 
 
 def get_face_and_eye_coordinates(image):
+    """
+    Detects a face and a pair of eyes in an image and returns their coordinates.
+
+    :param image: the image to be examined
+    :return: the coordinates of the first detected face and pair of eyes
+    """
+    # convert image to grayscale
     grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Only take one face, the first
@@ -53,6 +66,12 @@ def get_face_and_eye_coordinates(image):
 
 
 def get_face_coordinates(image):
+    """
+    Detects a face in an image and returns its coordinates.
+
+    :param image: the image to be examined
+    :return: the coordinates of the first detected face
+    """
     grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Only take one face, the first
@@ -69,7 +88,12 @@ intensities = []
 x = list(range(len(intensities)))
 
 
-def get_heart_rate(bpm_list=list()):
+def get_heart_rate():
+    """
+    Calculates the heart rate using intensities extracted from face images.
+
+    :return: heart rates in bpm
+    """
     fs = 1 / (sum(camera_times) / data_length)
     temp_intensities = sig.detrend(apply_ff(intensities, fs))
     frequencies, pows = signal.welch(temp_intensities, fs=fs, nperseg=256)
@@ -79,6 +103,12 @@ def get_heart_rate(bpm_list=list()):
 
 
 def get_headbox_from_head(face):
+    """
+    Extract the headbox from face coordinates.
+
+    :param face: the face coordinates
+    :return: the headbox
+    """
     return (face[0] + face[2] // 4,
             face[1] + face[3] // 2,
             face[0] + 3 * face[2] // 4,
@@ -89,6 +119,13 @@ video_capture = cv2.VideoCapture(0)
 
 
 def read_intensity(intensities, current_frame, bounding_box):
+    """
+    Extracts intensities from the face for calculating the heart rate.
+
+    :param intensities: the intensities
+    :param current_frame: the current frame
+    :param bounding_box: the bounding box of the face
+    """
     now = 0
 
     eye_left = 0
@@ -96,8 +133,8 @@ def read_intensity(intensities, current_frame, bounding_box):
     eye_right = 0
     eye_top = 0
     while True:
-
-        ret, frame = video_capture.read()
+        # fetch the next frame
+        _, frame = video_capture.read()
 
         scale_factor = 0.4
         frame = cv2.resize(frame, (-1, -1), fx=scale_factor, fy=scale_factor)
