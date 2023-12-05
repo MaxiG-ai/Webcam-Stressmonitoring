@@ -8,32 +8,52 @@ import threading
 
 import scipy.signal as sig
 
+WINDOW_NAME = 'Heartrate Monitoring'
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
 
+def apply_ff(data, sample_frequency):
+    """
+    Applies a forward-backward digital filter using cascaded second-order sections.
 
-def applyFF(data, sampleFreq):
-    if sampleFreq > 3:
-        sos = sig.iirdesign([.66, 3.0], [.5, 4.0], 1.0,
-                            40.0, fs=sampleFreq, output='sos')
+    :param data: the data
+    :param sample_frequency: the sample frequency
+    :return: the filtered data
+    """
+    if sample_frequency > 3:
+        sos = sig.iirdesign(
+            [.66, 3.0],
+            [.5, 4.0],
+            1.0,
+            40.0,
+            fs=sample_frequency,
+            output='sos'
+        )
         return sig.sosfiltfilt(sos, data)
     else:
         return data
 
 
-def getFaceXYHWAndEyeXYHW(im):
-    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+def get_face_and_eye_coordinates(image):
+    """
+    Detects a face and a pair of eyes in an image and returns their coordinates.
+
+    :param image: the image to be examined
+    :return: the coordinates of the first detected face and pair of eyes
+    """
+    # convert image to grayscale
+    grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Only take one face, the first
-    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    faces = face_cascade.detectMultiScale(grayscale_image, 1.3, 5)
     if len(faces) < 1:
         return None
     (x, y, w, h) = faces[0]
 
     # Crop out faces and detect eyes in that window.
-    roi_gray = gray[y:y + h, x:x + w]
-    eyes, numDetects = eye_cascade.detectMultiScale2(roi_gray, minNeighbors=10)
-    if len(numDetects) < 2:
+    roi_grayscale_image = grayscale_image[y:y + h, x:x + w]
+    eyes, number_of_detections = eye_cascade.detectMultiScale2(roi_grayscale_image, minNeighbors=10)
+    if len(number_of_detections) < 2:
         return None
 
     # Change eye coords to be in image coordinates instead of face coordinates
@@ -45,104 +65,141 @@ def getFaceXYHWAndEyeXYHW(im):
     return [faces[0], eyes[0], eyes[1]]
 
 
-def getFace(im):
-    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+def get_face_coordinates(image):
+    """
+    Detects a face in an image and returns its coordinates.
+
+    :param image: the image to be examined
+    :return: the coordinates of the first detected face
+    """
+    grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Only take one face, the first
-    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    faces = face_cascade.detectMultiScale(grayscale_image, 1.3, 5)
     if len(faces) < 1:
         return None
 
     return faces[0]
 
 
-dataLen = 120
-camTimes = [0]*dataLen
+data_length = 120
+camera_times = [0] * data_length
 intensities = []
 x = list(range(len(intensities)))
 
 
-def getHR(bpm_ls=list()):
-    fs = 1 / (sum(camTimes) / dataLen)
-    tmpIntens = sig.detrend(applyFF(intensities, fs))
-    freqs, pows = signal.welch(tmpIntens, fs=fs, nperseg=256)
-    bpm = round(freqs[np.argmax(pows)] * 60, 2)
+def get_heart_rate():
+    """
+    Calculates the heart rate using intensities extracted from face images.
+
+    :return: heart rates in bpm
+    """
+    fs = 1 / (sum(camera_times) / data_length)
+    temp_intensities = sig.detrend(apply_ff(intensities, fs))
+    frequencies, pows = signal.welch(temp_intensities, fs=fs, nperseg=256)
+    bpm = round(frequencies[np.argmax(pows)] * 60, 2)
     print("output BPM: ", bpm, fs)
     return bpm
 
 
-def getHeadboxFromHead(face):
-    return face[0] + face[2] // 4, face[1] + face[3] // 2, face[0] + 3 * face[
-        2] // 4, face[1] + face[3] // 2 + 50
+def get_headbox_from_head(face):
+    """
+    Extract the headbox from face coordinates.
+
+    :param face: the face coordinates
+    :return: the headbox
+    """
+    return (face[0] + face[2] // 4,
+            face[1] + face[3] // 2,
+            face[0] + 3 * face[2] // 4,
+            face[1] + face[3] // 2 + 50)
 
 
-cap = cv2.VideoCapture(0)
+video_capture = cv2.VideoCapture(0)
 
 
-def readIntensity(intensities, curFrame, cropBoxBounds):
+def read_intensity(intensities, current_frame, bounding_box):
+    """
+    Extracts intensities from the face for calculating the heart rate.
+
+    :param intensities: the intensities
+    :param current_frame: the current frame
+    :param bounding_box: the bounding box of the face
+    """
     now = 0
 
-    eyeleft = 0
-    headTop = 0
-    eyeright = 0
-    eyeTop = 0
+    eye_left = 0
+    head_top = 0
+    eye_right = 0
+    eye_top = 0
     while True:
+        # fetch the next frame
+        _, frame = video_capture.read()
 
-        ret, frame = cap.read()
+        scale_factor = 0.4
+        frame = cv2.resize(frame, (-1, -1), fx=scale_factor, fy=scale_factor)
 
-        scaleFactor = 0.4
-        frame = cv2.resize(frame, (-1, -1), fx=scaleFactor, fy=scaleFactor)
-
-        # tmp = getFaceXYHWAndEyeXYHW(frame) # Haar outputs [x, y, w, h] format
-        face = getFace(frame)
+        # tmp = get_face_coordinates(frame) # Haar outputs [x, y, w, h] format
+        face = get_face_coordinates(frame)
         if face is not None:
             # if tmp != None:
             # face, eye1, eye2 = tmp
             # eyeleft, headTop, eyeright, eyeTop\
-            # tmpHeadbox = getHeadbox(face, eye1, eye2)
-            tmpHeadbox = getHeadboxFromHead(face)
+            # temp_headbox = get_headbox_from_head(face, eye1, eye2)
+            temp_headbox = get_headbox_from_head(face)
 
-            a = .4
-            eyeleft = int(tmpHeadbox[0]*a + (1-a)*eyeleft)
-            headTop = int(tmpHeadbox[1]*a + (1-a)*headTop)
-            eyeright = int(tmpHeadbox[2]*a + (1-a)*eyeright)
-            eyeTop = int(tmpHeadbox[3]*a + (1-a)*eyeTop)
+            scaling = .4
+            eye_left = int(temp_headbox[0] * scaling + (1 - scaling) * eye_left)
+            head_top = int(temp_headbox[1] * scaling + (1 - scaling) * head_top)
+            eye_right = int(temp_headbox[2] * scaling + (1 - scaling) * eye_right)
+            eye_top = int(temp_headbox[3] * scaling + (1 - scaling) * eye_top)
 
-            ROI = frame[headTop:eyeTop, eyeleft:eyeright, 1]
-            intensity = ROI.mean()
-            # intensity = np.median(ROI) # works, but quite chunky.
+            roi = frame[head_top:eye_top, eye_left:eye_right, 1]
+            intensity = roi.mean()
+            # intensity = np.median(roi) # works, but quite chunky.
 
             intensities.append(intensity)
 
             # Draw the forehead box:
-            curFrame[0] = cv2.rectangle(frame, (eyeleft, headTop),
-                                        (eyeright, eyeTop), (0, 255, 0), 1)
-            cropBoxBounds[0] = [headTop + 2,
-                                eyeTop - 2, eyeleft + 2, eyeright - 2]
+            current_frame[0] = cv2.rectangle(
+                frame,
+                (eye_left, head_top),
+                (eye_right, eye_top),
+                (0, 255, 0),
+                1
+            )
+            bounding_box[0] = [
+                head_top + 2,
+                eye_top - 2,
+                eye_left + 2,
+                eye_right - 2
+            ]
 
-            if (len(intensities) > dataLen):
+            if (len(intensities) > data_length):
                 intensities.pop(0)
 
-            camTimes.append(time.time() - now)
+            camera_times.append(time.time() - now)
             now = time.time()
-            camTimes.pop(0)
+            camera_times.pop(0)
 
 
-cropBoxBounds = [0]
-curFrame = [0]
-t1 = threading.Thread(target=readIntensity, daemon=True,
-                      args=(intensities, curFrame, cropBoxBounds))
-t1.start()
-
+bounding_box = [0]
+current_frame = [0]
+thread = threading.Thread(
+    target=read_intensity,
+    daemon=True,
+    args=(intensities, current_frame, bounding_box)
+)
+thread.start()
 
 time.sleep(1)
 with open("data.txt", "w") as f:
     while True:
-        frame = curFrame[0]
-        bb = cropBoxBounds[0]
+        frame = current_frame[0]
+        bb = bounding_box[0]
         ROI = frame[bb[0]:bb[1], bb[2]:bb[3], 1]
-        f.write(str(getHR()) + "\n")
+        f.write(str(get_heart_rate()) + "\n")
 
-        cv2.imshow("yea", frame)
+        cv2.imshow(WINDOW_NAME, frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
