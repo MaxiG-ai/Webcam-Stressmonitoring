@@ -9,6 +9,7 @@ import threading
 import scipy.signal as sig
 
 WINDOW_NAME = 'Heartrate Monitoring'
+TIMEOUT = 60
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
 
@@ -87,6 +88,7 @@ camera_times = [0] * data_length
 intensities = []
 x = list(range(len(intensities)))
 
+bpm_history_rolling = np.zeros(120)
 
 def get_heart_rate():
     """
@@ -98,8 +100,11 @@ def get_heart_rate():
     temp_intensities = sig.detrend(apply_ff(intensities, fs))
     frequencies, pows = signal.welch(temp_intensities, fs=fs, nperseg=256)
     bpm = round(frequencies[np.argmax(pows)] * 60, 2)
-    print("output BPM: ", bpm, fs)
-    return bpm
+    global bpm_history_rolling
+    bpm_history_rolling = np.append(bpm_history_rolling, bpm)
+    rolling_avg_bpm = np.mean(bpm_history_rolling[-120:])
+    print("output BPM: ", bpm, rolling_avg_bpm, fs)
+    return rolling_avg_bpm
 
 
 def get_headbox_from_head(face):
@@ -110,7 +115,7 @@ def get_headbox_from_head(face):
     :return: the headbox
     """
     return (face[0] + face[2] // 4,
-            face[1] + face[3] // 2,
+            face[1] + face[3] // 3,
             face[0] + 3 * face[2] // 4,
             face[1] + face[3] // 2 + 50)
 
@@ -148,11 +153,11 @@ def read_intensity(intensities, current_frame, bounding_box):
             # temp_headbox = get_headbox_from_head(face, eye1, eye2)
             temp_headbox = get_headbox_from_head(face)
 
-            scaling = .4
-            eye_left = int(temp_headbox[0] * scaling + (1 - scaling) * eye_left)
-            head_top = int(temp_headbox[1] * scaling + (1 - scaling) * head_top)
-            eye_right = int(temp_headbox[2] * scaling + (1 - scaling) * eye_right)
-            eye_top = int(temp_headbox[3] * scaling + (1 - scaling) * eye_top)
+            update_rate = .4
+            eye_left = int(temp_headbox[0] * update_rate + (1 - update_rate) * eye_left)
+            head_top = int(temp_headbox[1] * update_rate + (1 - update_rate) * head_top)
+            eye_right = int(temp_headbox[2] * update_rate + (1 - update_rate) * eye_right)
+            eye_top = int(temp_headbox[3] * update_rate + (1 - update_rate) * eye_top)
 
             roi = frame[head_top:eye_top, eye_left:eye_right, 1]
             intensity = roi.mean()
@@ -193,6 +198,8 @@ thread = threading.Thread(
 thread.start()
 
 time.sleep(1)
+start_time = time.time()
+print("Camera fs: ", 1 / (sum(camera_times) / data_length))
 with open("data.txt", "w") as f:
     while True:
         frame = current_frame[0]
@@ -201,5 +208,5 @@ with open("data.txt", "w") as f:
         f.write(str(get_heart_rate()) + "\n")
 
         cv2.imshow(WINDOW_NAME, frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord('q') or (time.time() - start_time) > TIMEOUT:
             break
