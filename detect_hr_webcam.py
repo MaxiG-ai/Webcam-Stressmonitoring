@@ -9,9 +9,11 @@ import threading
 import scipy.signal as sig
 
 WINDOW_NAME = 'Heartrate Monitoring'
-TIMEOUT = 60
+TIMEOUT = 3600  # 1 hour
+# TIMEOUT = 60 # 60 seconds
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
+
 
 def apply_ff(data, sample_frequency):
     """
@@ -71,7 +73,7 @@ def get_face_coordinates(image):
     Detects a face in an image and returns its coordinates.
 
     :param image: the image to be examined
-    :return: the coordinates of the first detected face
+    :return: the coordinates of the first detected face as a tuple containing left, top, width and height
     """
     grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -89,6 +91,7 @@ intensities = []
 x = list(range(len(intensities)))
 
 bpm_history_rolling = np.zeros(120)
+
 
 def get_heart_rate():
     """
@@ -112,19 +115,29 @@ def get_headbox_from_head(face):
     Extract the headbox from face coordinates.
 
     :param face: the face coordinates
-    :return: the headbox
+    :return: the coordinates of the headbox as a tuple containing left, top, right and bottom
     """
     face_left = face[0]
     face_top = face[1]
     face_width = face[2]
     face_height = face[3]
 
-    box_left = face_left + face_width // 4
-    box_top = face_top + face_height // 3
-    box_width = face_left + 3 * face_width // 4
-    box_height = face_top + face_height // 2 + 50
+    # box_left = face_left
+    # box_top = face_top
+    # box_right = face_left + face_width
+    # box_bottom = face_top + face_height
 
-    return box_left, box_top, box_width, box_height
+    box_left = face_left + (face_width // 4)
+    box_top = face_top + (face_height // 3)
+    box_right = face_left + (3 * face_width // 4)
+    box_bottom = face_top + (face_height // 2 + round(face_height * 0.15))
+
+    # box_left = face_left + (face_width // 4)
+    # box_top = face_top + (face_height // 3)
+    # box_right = face_left + (3 * face_width // 4)
+    # box_bottom = face_top + (face_height // 2 + 50)
+
+    return box_left, box_top, box_right, box_bottom
 
 
 video_capture = cv2.VideoCapture(0)
@@ -139,11 +152,10 @@ def read_intensity(intensities, current_frame, bounding_box):
     :param bounding_box: the bounding box of the face
     """
     now = 0
-
-    eye_left = 0
-    head_top = 0
-    eye_right = 0
-    eye_top = 0
+    box_left = 0
+    box_top = 0
+    box_right = 0
+    box_bottom = 0
     while True:
         # fetch the next frame
         _, frame = video_capture.read()
@@ -151,43 +163,40 @@ def read_intensity(intensities, current_frame, bounding_box):
         scale_factor = 0.4
         frame = cv2.resize(frame, (-1, -1), fx=scale_factor, fy=scale_factor)
 
-        # tmp = get_face_coordinates(frame) # Haar outputs [x, y, w, h] format
         face = get_face_coordinates(frame)
         if face is not None:
-            # if tmp != None:
-            # face, eye1, eye2 = tmp
-            # eyeleft, headTop, eyeright, eyeTop\
-            # temp_headbox = get_headbox_from_head(face, eye1, eye2)
-            temp_headbox = get_headbox_from_head(face)
+            new_box_left, new_box_top, new_box_right, new_box_bottom = get_headbox_from_head(face)
 
             update_rate = .4
-            eye_left = int(temp_headbox[0] * update_rate + (1 - update_rate) * eye_left)
-            head_top = int(temp_headbox[1] * update_rate + (1 - update_rate) * head_top)
-            eye_right = int(temp_headbox[2] * update_rate + (1 - update_rate) * eye_right)
-            eye_top = int(temp_headbox[3] * update_rate + (1 - update_rate) * eye_top)
+            box_left = int(new_box_left * update_rate + (1 - update_rate) * box_left)
+            box_top = int(new_box_top * update_rate + (1 - update_rate) * box_top)
+            box_right = int(new_box_right * update_rate + (1 - update_rate) * box_right)
+            box_bottom = int(new_box_bottom * update_rate + (1 - update_rate) * box_bottom)
 
-            roi = frame[head_top:eye_top, eye_left:eye_right, 1]
+            # extract the region of interest (roi)
+            roi = frame[box_top:box_bottom, box_left:box_right, 1]
+            # intensity = np.median(roi) # works, but quite chunky
             intensity = roi.mean()
-            # intensity = np.median(roi) # works, but quite chunky.
 
             intensities.append(intensity)
 
-            # Draw the forehead box:
+            # draw the bounding box
             current_frame[0] = cv2.rectangle(
                 frame,
-                (eye_left, head_top),
-                (eye_right, eye_top),
+                (box_left, box_top),
+                (box_right, box_bottom),
                 (0, 255, 0),
                 1
             )
+            # expand bounding box slightly
             bounding_box[0] = [
-                head_top + 2,
-                eye_top - 2,
-                eye_left + 2,
-                eye_right - 2
+                box_top + 2,
+                box_bottom - 2,
+                box_left + 2,
+                box_right - 2
             ]
 
-            if (len(intensities) > data_length):
+            if len(intensities) > data_length:
                 intensities.pop(0)
 
             camera_times.append(time.time() - now)
