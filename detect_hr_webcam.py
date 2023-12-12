@@ -114,10 +114,17 @@ def get_headbox_from_head(face):
     :param face: the face coordinates
     :return: the headbox
     """
-    return (face[0] + face[2] // 4,
-            face[1] + face[3] // 3,
-            face[0] + 3 * face[2] // 4,
-            face[1] + face[3] // 2 + 50)
+    face_left = face[0]
+    face_top = face[1]
+    face_right = face[2]
+    face_bottom = face[3]
+
+    box_left = face_left + face_right // 4
+    box_top = face_top + face_bottom // 3
+    box_right = face_left + 3 * face_right // 4
+    box_bottom = face_top + face_bottom // 2 + 50
+
+    return (box_left, box_top, box_right, box_bottom)
 
 
 video_capture = cv2.VideoCapture(0)
