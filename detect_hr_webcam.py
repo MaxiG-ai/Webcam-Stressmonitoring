@@ -21,10 +21,18 @@ class VideoSource(Enum):
 
 WINDOW_NAME = 'Heartrate Monitoring'
 VIDEO_SOURCE = VideoSource.WEBCAM
+DISPLAY_FACE_BOX = True
+DISPLAY_ROI_BOX = True
 # TIMEOUT = 3600  # 1 hour
 # TIMEOUT = 60 # 60 seconds
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
+
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 255, 0)
+FACE_BOX_STYLE = {'color': GREEN, 'thickness': 2}
+ROI_BOX_STYLE = {'color': GREEN, 'thickness': 1}
 
 data_length = 120
 camera_times = [0] * data_length
@@ -109,7 +117,7 @@ def get_face_coordinates(image):
     Detects a face in an image and returns its coordinates.
 
     :param image: the image to be examined
-    :return: the coordinates of the first detected face as a tuple containing left, top, width and height
+    :return: the coordinates of the first detected face as a tuple consisting of left, top, width and height
     """
     grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -138,12 +146,12 @@ def get_heart_rate():
     return rolling_avg_bpm
 
 
-def get_headbox_from_head(face):
+def get_roi_box_from_face(face):
     """
-    Extract the headbox from face coordinates.
+    Extract the region of interest from face coordinates.
 
     :param face: the face coordinates
-    :return: the coordinates of the headbox as a tuple containing left, top, right and bottom
+    :return: the coordinates of the region of interest as a tuple consisting of left, top, right and bottom
     """
     face_left = face[0]
     face_top = face[1]
@@ -168,6 +176,38 @@ def get_headbox_from_head(face):
     return box_left, box_top, box_right, box_bottom
 
 
+def convert_face_coordinates(face):
+    """
+    Converts the face coordinates.
+
+    :param face: the face coordinates as a tuple consisting of left, top, width, height
+    :return: the face coordinates as a tuple consisting of left, top, right, bottom
+    """
+    left, top, width, height = face
+    return left, top, left + width, top + height
+
+
+def update_coordinates(old_coordinates, new_coordinates, update_rate=1.0):
+    """
+    Updates the coordinates according to a given update rate. A rate of 1
+    means that the new coordinates replace the old ones.
+
+    :param old_coordinates: the old coordinates
+    :param new_coordinates: the new coordinates
+    :param update_rate: the update rate
+    :return: the updated coordinates
+    """
+    old_left, old_top, old_right, old_bottom = old_coordinates
+    new_left, new_top, new_right, new_bottom = new_coordinates
+
+    updated_left = int(new_left * update_rate + (1 - update_rate) * old_left)
+    updated_top = int(new_top * update_rate + (1 - update_rate) * old_top)
+    updated_right = int(new_right * update_rate + (1 - update_rate) * old_right)
+    updated_bottom = int(new_bottom * update_rate + (1 - update_rate) * old_bottom)
+
+    return updated_left, updated_top, updated_right, updated_bottom
+
+
 def read_intensity(intensities, current_frame, bounding_box):
     """
     Extracts intensities from the face for calculating the heart rate.
@@ -176,13 +216,17 @@ def read_intensity(intensities, current_frame, bounding_box):
     :param current_frame: the current frame
     :param bounding_box: the bounding box of the face
     """
+    scale_factor = 0.4  # determines how much the original image is scaled down
+    update_rate = 0.4  # determines how fast bounding boxes adapt
+
     if VIDEO_SOURCE == VideoSource.FILE:
         frame_counter = 0
+
+    face_box = (0, 0, 0, 0)
+    roi_box = (0, 0, 0, 0)
+    boxes_to_display = []
+
     now = 0
-    box_left = 0
-    box_top = 0
-    box_right = 0
-    box_bottom = 0
     while True:
         # fetch the next frame
         _, frame = video_capture.read()
@@ -194,40 +238,32 @@ def read_intensity(intensities, current_frame, bounding_box):
                 frame_counter = 0
                 video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
-        scale_factor = 0.4
+        # scale down the image
         frame = cv2.resize(frame, (-1, -1), fx=scale_factor, fy=scale_factor)
 
         face = get_face_coordinates(frame)
         if face is not None:
-            new_box_left, new_box_top, new_box_right, new_box_bottom = get_headbox_from_head(face)
+            # update the box coordinates with the new ones
+            face_box = update_coordinates(face_box, convert_face_coordinates(face), update_rate)
+            roi_box = update_coordinates(roi_box, get_roi_box_from_face(face), update_rate)
 
-            update_rate = .4
-            box_left = int(new_box_left * update_rate + (1 - update_rate) * box_left)
-            box_top = int(new_box_top * update_rate + (1 - update_rate) * box_top)
-            box_right = int(new_box_right * update_rate + (1 - update_rate) * box_right)
-            box_bottom = int(new_box_bottom * update_rate + (1 - update_rate) * box_bottom)
-
-            # extract the region of interest (roi)
-            roi = frame[box_top:box_bottom, box_left:box_right, 1]
-            # intensity = np.median(roi) # works, but quite chunky
-            intensity = roi.mean()
-
+            # extract the region of interest
+            roi_box_left, roi_box_top, roi_box_right, roi_box_bottom = roi_box
+            roi = frame[roi_box_top:roi_box_bottom, roi_box_left:roi_box_right, 1]
+            intensity = roi.mean()  # intensity = np.median(roi) works, but quite chunky
             intensities.append(intensity)
 
-            # draw the bounding box
-            current_frame[0] = cv2.rectangle(
-                frame,
-                (box_left, box_top),
-                (box_right, box_bottom),
-                (0, 255, 0),
-                1
-            )
+            if DISPLAY_FACE_BOX:
+                boxes_to_display.append((face_box, FACE_BOX_STYLE))
+            if DISPLAY_ROI_BOX:
+                boxes_to_display.append((roi_box, ROI_BOX_STYLE))
+
             # expand bounding box slightly
             bounding_box[0] = [
-                box_top + 2,
-                box_bottom - 2,
-                box_left + 2,
-                box_right - 2
+                roi_box_top + 2,
+                roi_box_bottom - 2,
+                roi_box_left + 2,
+                roi_box_right - 2
             ]
 
             if len(intensities) > data_length:
@@ -236,6 +272,19 @@ def read_intensity(intensities, current_frame, bounding_box):
             camera_times.append(time.time() - now)
             now = time.time()
             camera_times.pop(0)
+
+        # add the detected bounding boxes to the frame
+        for ((box_left, box_top, box_right, box_bottom), style) in boxes_to_display:
+            frame = cv2.rectangle(
+                frame,
+                (box_left, box_top),
+                (box_right, box_bottom),
+                **style
+            )
+        boxes_to_display = []
+
+        # display the frame
+        current_frame[0] = frame
 
 
 if __name__ == "__main__":
