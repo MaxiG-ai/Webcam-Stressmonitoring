@@ -1,5 +1,7 @@
 # Must be run in console to work properly
 
+from enum import Enum
+
 import numpy as np
 import cv2
 import time
@@ -8,11 +10,45 @@ import threading
 
 import scipy.signal as sig
 
+import os
+from tkinter import filedialog
+
+
+class VideoSource(Enum):
+    WEBCAM = 1
+    FILE = 2
+
+
 WINDOW_NAME = 'Heartrate Monitoring'
-TIMEOUT = 3600  # 1 hour
+VIDEO_SOURCE = VideoSource.WEBCAM
+# TIMEOUT = 3600  # 1 hour
 # TIMEOUT = 60 # 60 seconds
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
+
+data_length = 120
+camera_times = [0] * data_length
+intensities = []
+x = list(range(len(intensities)))
+
+bpm_history_rolling = np.zeros(120)
+
+if VIDEO_SOURCE == VideoSource.WEBCAM:
+    video_capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+elif VIDEO_SOURCE == VideoSource.FILE:
+    file_path = filedialog.askopenfilename(
+        initialdir=os.getcwd(),
+        filetypes=[
+            ('Video files', ('.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'))
+        ]
+    )
+    if file_path == '' or file_path is None:
+        print('No file was selected. Stopping execution.')
+        exit(1)
+    video_capture = cv2.VideoCapture(file_path)
+else:
+    print('No video source was defined. Stopping execution.')
+    exit(1)
 
 
 def apply_ff(data, sample_frequency):
@@ -85,14 +121,6 @@ def get_face_coordinates(image):
     return faces[0]
 
 
-data_length = 120
-camera_times = [0] * data_length
-intensities = []
-x = list(range(len(intensities)))
-
-bpm_history_rolling = np.zeros(120)
-
-
 def get_heart_rate():
     """
     Calculates the heart rate using intensities extracted from face images.
@@ -140,9 +168,6 @@ def get_headbox_from_head(face):
     return box_left, box_top, box_right, box_bottom
 
 
-video_capture = cv2.VideoCapture(0)
-
-
 def read_intensity(intensities, current_frame, bounding_box):
     """
     Extracts intensities from the face for calculating the heart rate.
@@ -151,6 +176,8 @@ def read_intensity(intensities, current_frame, bounding_box):
     :param current_frame: the current frame
     :param bounding_box: the bounding box of the face
     """
+    if VIDEO_SOURCE == VideoSource.FILE:
+        frame_counter = 0
     now = 0
     box_left = 0
     box_top = 0
@@ -159,6 +186,13 @@ def read_intensity(intensities, current_frame, bounding_box):
     while True:
         # fetch the next frame
         _, frame = video_capture.read()
+
+        # if a video file is used as source, it is restarted when the last frame is reached
+        if VIDEO_SOURCE == VideoSource.FILE:
+            frame_counter += 1
+            if frame_counter == video_capture.get(cv2.CAP_PROP_FRAME_COUNT):
+                frame_counter = 0
+                video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
         scale_factor = 0.4
         frame = cv2.resize(frame, (-1, -1), fx=scale_factor, fy=scale_factor)
@@ -204,25 +238,27 @@ def read_intensity(intensities, current_frame, bounding_box):
             camera_times.pop(0)
 
 
-bounding_box = [0]
-current_frame = [0]
-thread = threading.Thread(
-    target=read_intensity,
-    daemon=True,
-    args=(intensities, current_frame, bounding_box)
-)
-thread.start()
+if __name__ == "__main__":
+    bounding_box = [0]
+    current_frame = [0]
+    thread = threading.Thread(
+        target=read_intensity,
+        daemon=True,
+        args=(intensities, current_frame, bounding_box)
+    )
+    thread.start()
 
-time.sleep(1)
-start_time = time.time()
-print("Camera fs: ", 1 / (sum(camera_times) / data_length))
-with open("data.txt", "w") as f:
-    while True:
-        frame = current_frame[0]
-        bb = bounding_box[0]
-        ROI = frame[bb[0]:bb[1], bb[2]:bb[3], 1]
-        f.write(str(get_heart_rate()) + "\n")
+    time.sleep(1)
+    # start_time = time.time()
+    print("Camera fs: ", 1 / (sum(camera_times) / data_length))
+    with open("data.txt", "w") as f:
+        while True:
+            frame = current_frame[0]
+            bb = bounding_box[0]
+            ROI = frame[bb[0]:bb[1], bb[2]:bb[3], 1]
+            f.write(str(get_heart_rate()) + "\n")
 
-        cv2.imshow(WINDOW_NAME, frame)
-        if cv2.waitKey(1) & 0xFF == ord('q') or (time.time() - start_time) > TIMEOUT:
-            break
+            cv2.imshow(WINDOW_NAME, frame)
+            # if cv2.waitKey(1) & 0xFF == ord('q') or (time.time() - start_time) > TIMEOUT:
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
