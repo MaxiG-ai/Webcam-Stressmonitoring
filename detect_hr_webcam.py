@@ -1,5 +1,8 @@
 # Must be run in console to work properly
 
+import warnings
+warnings.filterwarnings("ignore")
+
 from enum import Enum
 
 import numpy as np
@@ -12,6 +15,37 @@ import scipy.signal as sig
 
 import os
 from tkinter import filedialog
+
+
+class MovingAverage:
+    """
+    A class for calculating the moving average of a data stream.
+    """
+    def __init__(self, initial_value=0, window_size=256):
+        """
+        Initialize the moving average class with an initial value and a window size.
+
+        :param initial_value: the initial value
+        :param window_size: the window size
+        """
+        self.window_size = window_size
+        self.history = np.full(window_size, initial_value)
+
+    def add(self, value):
+        """
+        Add a value to the moving average.
+
+        :param value: the value
+        """
+        self.history = np.append(self.history, value)
+
+    def get(self):
+        """
+        Get the current moving average.
+
+        :return: the moving average
+        """
+        return np.mean(self.history[-self.window_size:])
 
 
 class VideoSource(Enum):
@@ -61,12 +95,14 @@ FACE_BOX_STYLE = {'color': GREEN, 'thickness': 2}
 EYE_BOX_STYLE = {'color': GREEN, 'thickness': 1}
 ROI_BOX_STYLE = {'color': YELLOW, 'thickness': 1}
 
+INITIAL_BPM = 0
+MOVING_AVERAGE_WINDOW = 512
+moving_average_bpm = MovingAverage(INITIAL_BPM, MOVING_AVERAGE_WINDOW)
+
 data_length = 120
 camera_times = [0] * data_length
 intensities = []
 x = list(range(len(intensities)))
-
-bpm_history_rolling = np.zeros(120)
 
 if VIDEO_SOURCE == VideoSource.WEBCAM:
     video_capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
@@ -178,11 +214,7 @@ def get_heart_rate():
     temp_intensities = sig.detrend(apply_ff(intensities, fs))
     frequencies, pows = signal.welch(temp_intensities, fs=fs, nperseg=256)
     bpm = round(frequencies[np.argmax(pows)] * 60, 2)
-    global bpm_history_rolling
-    bpm_history_rolling = np.append(bpm_history_rolling, bpm)
-    rolling_avg_bpm = np.mean(bpm_history_rolling[-120:])
-    print("output BPM: ", bpm, rolling_avg_bpm, fs)
-    return rolling_avg_bpm
+    return bpm, fs
 
 
 def get_roi_box(face, eyes):
@@ -232,9 +264,9 @@ def get_roi_box(face, eyes):
 
         elif EYE_BOX_STRATEGY == EyeBoxStrategy.APPROXIMATION:
 
-            box_left = get_weighted_average(box_left, left_eye_left, EYE_BOX_APPROXIMATION_RATIO)
-            box_top = get_weighted_average(box_top, max(left_eye_top, right_eye_top), EYE_BOX_APPROXIMATION_RATIO)
-            box_right = get_weighted_average(box_right, right_eye_right, EYE_BOX_APPROXIMATION_RATIO)
+            box_left = int(get_weighted_average(box_left, left_eye_left, EYE_BOX_APPROXIMATION_RATIO))
+            box_top = int(get_weighted_average(box_top, max(left_eye_top, right_eye_top), EYE_BOX_APPROXIMATION_RATIO))
+            box_right = int(get_weighted_average(box_right, right_eye_right, EYE_BOX_APPROXIMATION_RATIO))
 
     return box_left, box_top, box_right, box_bottom
 
@@ -434,7 +466,12 @@ if __name__ == "__main__":
             frame = current_frame[0]
             bb = bounding_box[0]
             ROI = frame[bb[0]:bb[1], bb[2]:bb[3], 1]
-            f.write(str(get_heart_rate()) + "\n")
+            bpm, fs = get_heart_rate()
+            moving_average_bpm.add(bpm)
+
+            output = "Moving Average BPM: {:.2f}, BPM: {:.2f}, FS: {:.2f}".format(moving_average_bpm.get(), bpm, fs)
+            print(output)
+            f.write(output + "\n")
 
             cv2.imshow(WINDOW_NAME, frame)
             # if cv2.waitKey(1) & 0xFF == ord('q') or (time.time() - start_time) > TIMEOUT:
