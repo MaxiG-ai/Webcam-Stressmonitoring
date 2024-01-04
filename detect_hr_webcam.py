@@ -74,7 +74,7 @@ class EyeBoxStrategy(Enum):
     DISABLED = 4
 
 
-# the strategy that determines how the eye box is used for determining the roi for heartrate detection
+# the strategy that determines how the eye box is used for determining the roi for video_heartrate detection
 EYE_BOX_STRATEGY = EyeBoxStrategy.CONTRACTION
 # determines by how much the eye box is shrunk horizontally when using EyeBoxStrategy.CONTRACTION
 EYE_BOX_HORIZONTAL_CONTRACTION_FACTOR = 0.1
