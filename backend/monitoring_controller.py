@@ -1,11 +1,13 @@
-import time
+import numpy as np
 
+import time
 import cv2
 
 from backend.service.util.result_type import ResultType
 from backend.service.video_heartrate.video_heartrate_monitoring_service import VideoHeartrateMonitoringService
 from backend.video.video_feed import VideoFeed
 from backend.video.video_source import VideoSource
+from backend.parameter_settings import MONITORING_CONTROLLER_SETTINGS
 
 
 class MonitoringController:
@@ -19,27 +21,31 @@ class MonitoringController:
         """
         Create a new monitoring controller.
         """
-        self.video_feed = VideoFeed(VideoSource.DEMO)
+        self.video_feed = VideoFeed(MONITORING_CONTROLLER_SETTINGS.get_value('VideoSource'))
         self.video_heartrate_monitoring_service = VideoHeartrateMonitoringService(self.video_feed)
 
     def initialize(self):
         """
         Initialize the monitoring controller.
         """
+        print('Started Initialization.')
+
         self.video_feed.initialize()
         self.video_feed.run()
         time.sleep(1)
 
         self.video_heartrate_monitoring_service.initialize()
         self.video_heartrate_monitoring_service.run()
-        time.sleep(4)
+        time.sleep(10)
+
+        print('Finished Initialization.')
 
     def run(self):
         """
         Start the monitoring controller.
         """
         while True:
-            frame = self.video_feed.get_latest_frame()
+            frame = np.copy(self.video_feed.get_latest_frame())
             video_heartrate = self.video_heartrate_monitoring_service.fetch()
 
             heartrate = video_heartrate[ResultType.HEARTRATE]
@@ -62,5 +68,5 @@ class MonitoringController:
                 framerate
             ))
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(int(1000 / MONITORING_CONTROLLER_SETTINGS.get_value('FPS'))) & 0xFF == ord('q'):
                 break

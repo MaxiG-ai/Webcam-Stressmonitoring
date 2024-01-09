@@ -305,7 +305,7 @@ class VideoHeartrateMonitoringService(MonitoringService):
         :return: heart rates in bpm
         """
         fs = self.intensities_window_size / sum(self.camera_times)
-        temp_intensities = signal.detrend(self._apply_ff(self.intensities, fs))
+        temp_intensities = signal.detrend(self._apply_ff(np.nan_to_num(self.intensities), fs))
         frequencies, pows = signal.welch(temp_intensities, fs=fs, nperseg=256)
         bpm = round(frequencies[np.argmax(pows)] * 60, 2)
         return bpm, fs

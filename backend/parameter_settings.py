@@ -1,5 +1,6 @@
-from backend.util.data_type import DataType
 from backend.service.video_heartrate.eye_box_strategy import EyeBoxStrategy
+from backend.util.data_type import DataType
+from backend.video.video_source import VideoSource
 
 
 class ParameterSettings:
@@ -67,9 +68,19 @@ class ParameterSettings:
         self.parameter_values[parameter] = value
 
 
+MONITORING_CONTROLLER_SETTINGS = ParameterSettings({
+    'VideoSource': ([
+        VideoSource.WEBCAM,
+        VideoSource.FILE,
+        VideoSource.DEMO
+    ], VideoSource.DEMO),
+    'FPS': (DataType.INTEGER, 24)
+})
+
 VIDEO_FEED_SETTINGS = ParameterSettings({
-    'ScalingFactor': (DataType.FLOAT, 0.4),
-    'LoopingEnabled': (DataType.BOOLEAN, True)
+    'ScalingFactor': (DataType.FLOAT, 0.35),
+    'LoopingEnabled': (DataType.BOOLEAN, True),
+    'DefaultFPS': (DataType.INTEGER, 24)
 })
 
 MONITORING_SERVICE_SETTINGS = ParameterSettings({})
