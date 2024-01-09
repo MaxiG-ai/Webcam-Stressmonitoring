@@ -1,8 +1,8 @@
-acapture==1.2.6
-bleak==0.21.1
-numpy==1.24.4
-opencv_python==4.8.1.78
-Pillow==10.2.0
-PyQt5==5.15.10
-PyQt5_sip==12.13.0
-scipy==1.8.0
+acapture
+bleak
+numpy
+opencv_python
+Pillow
+PyQt5
+PyQt5_sip
+scipy
