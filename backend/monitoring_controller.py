@@ -1,5 +1,5 @@
 import numpy as np
-
+import os
 import time
 import cv2
 
@@ -8,6 +8,15 @@ from backend.service.video_heartrate.video_heartrate_monitoring_service import V
 from backend.video.video_feed import VideoFeed
 from backend.video.video_source import VideoSource
 from backend.parameter_settings import MONITORING_CONTROLLER_SETTINGS
+from frontend.gui import Gui
+
+from PyQt5.QtCore import QLibraryInfo
+# from PySide2.QtCore import QLibraryInfo
+
+# set location of qt plugins
+os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = QLibraryInfo.location(
+    QLibraryInfo.PluginsPath
+)
 
 
 class MonitoringController:
@@ -23,6 +32,7 @@ class MonitoringController:
         """
         self.video_feed = VideoFeed(MONITORING_CONTROLLER_SETTINGS.get_value('VideoSource'))
         self.video_heartrate_monitoring_service = VideoHeartrateMonitoringService(self.video_feed)
+        self.gui = Gui()
 
     def initialize(self):
         """
@@ -37,6 +47,9 @@ class MonitoringController:
         self.video_heartrate_monitoring_service.initialize()
         self.video_heartrate_monitoring_service.run()
         time.sleep(10)
+
+        self.gui.initialize()
+        self.gui.run()
 
         print('Finished Initialization.')
 
@@ -60,13 +73,12 @@ class MonitoringController:
                     (box_right, box_bottom),
                     **style
                 )
-            cv2.imshow('Stress Monitoring', frame)
 
-            print("Moving Average BPM: {:.2f}, BPM: {:.2f}, FS: {:.2f}".format(
-                moving_average_heartrate,
-                heartrate,
-                framerate
-            ))
+            self.gui.update_frame(frame)
+            self.gui.update_heartrate(heartrate)
+            self.gui.update_moving_average_heartrate(moving_average_heartrate)
+            self.gui.update_framerate(framerate)
+            self.gui.update_bounding_boxes(bounding_boxes)
 
             if cv2.waitKey(int(1000 / MONITORING_CONTROLLER_SETTINGS.get_value('FPS'))) & 0xFF == ord('q'):
                 break

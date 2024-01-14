@@ -1,29 +1,55 @@
-import numpy as np
 from PyQt5.QtWidgets import QApplication
 
-from frontend.i_frontend import IFrontend
-from frontend.main_window import MainWindow
-from frontend.image_stream import ImageStream
 
 
-class Gui(IFrontend):
+class Gui:
 
     def __init__(self):
-        # initialize the gui
-        self._application = QApplication([])
-        self._main_window = MainWindow()
+        """
+        Create a new GUI.
+        """
+        self.app = QApplication([])
 
-        # setup image stream and connect it to the gui
-        self._image_stream = ImageStream()
-        self._image_stream.register_to_QImage_stream(self._main_window.update_image)
+    def initialize(self):
+        """
+        Initialize the GUI.
+        """
+        print('Started Initialization.')
 
-    def start(self):
-        self._main_window.show()
-        self._image_stream.start_QImage_stream()
-        self._application.exec_()
+        print('Finished Initialization.')
 
-    def get_image(self) -> np.ndarray:
-        return self._image_stream.get_single_image()
+    def run(self):
+        """
+        Start the GUI.
+        """
+        self.app.exec_()
 
-    def set_heartrate(self, heartrate: int):
-        self._main_window.set_heartrate(heartrate)
+    def update_frame(self, frame):
+        """
+        Update the GUI with the latest frame.
+        """
+        pass
+
+    def update_heartrate(self, heartrate):
+        """
+        Update the GUI with the latest heartrate.
+        """
+        pass
+
+    def update_moving_average_heartrate(self, moving_average_heartrate):
+        """
+        Update the GUI with the latest moving average heartrate.
+        """
+        pass
+
+    def update_framerate(self, framerate):
+        """
+        Update the GUI with the latest framerate.
+        """
+        pass
+
+    def update_bounding_boxes(self, bounding_boxes):
+        """
+        Update the GUI with the latest bounding boxes.
+        """
+        pass
