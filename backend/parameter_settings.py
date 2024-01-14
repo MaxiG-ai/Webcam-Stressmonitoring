@@ -73,7 +73,7 @@ MONITORING_CONTROLLER_SETTINGS = ParameterSettings({
         VideoSource.WEBCAM,
         VideoSource.FILE,
         VideoSource.DEMO
-    ], VideoSource.DEMO),
+    ], VideoSource.WEBCAM),
     'FPS': (DataType.INTEGER, 24)
 })
 
