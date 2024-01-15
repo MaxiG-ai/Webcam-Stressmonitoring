@@ -1,34 +1,38 @@
 from PyQt5.QtWidgets import QApplication
 
+from frontend.window import Window
+from frontend.results import Results
+from frontend.settings import Settings
+from frontend.video import Video
+
+
+from backend.backend_interface import BackendInterface
+
 
 
 class Gui:
 
-    def __init__(self):
+    def __init__(self, backend: BackendInterface):
         """
         Create a new GUI.
         """
         self.app = QApplication([])
+        self.window = Window(backend)
+
 
     def initialize(self):
         """
-        Initialize the GUI.
         """
-        print('Started Initialization.')
-
-        print('Finished Initialization.')
 
     def run(self):
         """
         Start the GUI.
         """
+        self.window.show()
         self.app.exec_()
 
     def update_frame(self, frame):
-        """
-        Update the GUI with the latest frame.
-        """
-        pass
+        self.window.update_frame(frame=frame)
 
     def update_heartrate(self, heartrate):
         """

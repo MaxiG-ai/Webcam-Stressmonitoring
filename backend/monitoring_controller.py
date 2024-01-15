@@ -3,6 +3,7 @@ import os
 import time
 import cv2
 
+from backend.backend_interface import BackendInterface
 from backend.service.util.result_type import ResultType
 from backend.service.video_heartrate.video_heartrate_monitoring_service import VideoHeartrateMonitoringService
 from backend.video.video_feed import VideoFeed
@@ -19,7 +20,7 @@ os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = QLibraryInfo.location(
 )
 
 
-class MonitoringController:
+class MonitoringController(BackendInterface):
     """Class for controlling the stress monitoring services program.
 
     This class controls the different modules used in the stress monitoring
@@ -32,7 +33,7 @@ class MonitoringController:
         """
         self.video_feed = VideoFeed(MONITORING_CONTROLLER_SETTINGS.get_value('VideoSource'))
         self.video_heartrate_monitoring_service = VideoHeartrateMonitoringService(self.video_feed)
-        self.gui = Gui()
+        self.gui = Gui(backend=self)
 
     def initialize(self):
         """
