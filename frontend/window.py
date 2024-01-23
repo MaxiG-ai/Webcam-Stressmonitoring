@@ -1,10 +1,13 @@
 import numpy as np
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from threading import Thread
+import time
+
 from backend.backend_interface import BackendInterface
 
 from frontend.video import Video
-from frontend.settings import Settings
 from frontend.results import Results
+from frontend.settings import Settings
 
 
 INITIAL_WINDOW_WIDTH = 1280
@@ -18,20 +21,21 @@ class Window(QWidget):
         super().__init__()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT)
-        self.backend = backend
 
-        self.video: QWidget = Video()
-        self.settings: QWidget = Settings()
-        self.results: QWidget = Results()
+        self.video = Video(parent=self, backend=backend)
+        self.sidebar_widget = QWidget()
+        self.main_layout = QHBoxLayout(self)
+        self.main_layout.addWidget(self.video, stretch=2)
+        self.main_layout.addWidget(self.sidebar_widget, stretch=1)
+        self.setLayout(self.main_layout)
 
-        # define horizontal boxes for video and sidebar
-        self.horizontal_layout = QHBoxLayout()
-        self.horizontal_layout.addWidget(self.video)
+        self.results = Results(parent=self.sidebar_widget, backend=backend)
+        self.settings = Settings(parent=self.sidebar_widget)
+        self.sidebar_layout = QVBoxLayout(self.sidebar_widget)
+        self.sidebar_layout.addWidget(self.results)
+        self.sidebar_layout.addWidget(self.settings)
+        self.sidebar_widget.setLayout(self.sidebar_layout)
 
-        # define sidebar with results and settings and add to horizontal layout
-        self.sidebar = QWidget()
-        self.vertical_layout = QVBoxLayout(self.sidebar)
-        self.horizontal_layout.addWidget(self.vertical_layout)
-
-    def update_frame(self, frame: np.array):
-        self.video.update_frame(frame)
+    def start_updating(self):
+        self.video.start_updating()
+        self.results.start_updating()

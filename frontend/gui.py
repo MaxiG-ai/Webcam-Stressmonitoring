@@ -19,41 +19,10 @@ class Gui:
         self.app = QApplication([])
         self.window = Window(backend)
 
-
-    def initialize(self):
-        """
-        """
-
     def run(self):
         """
         Start the GUI.
         """
         self.window.show()
+        self.window.start_updating()
         self.app.exec_()
-
-    def update_frame(self, frame):
-        self.window.update_frame(frame=frame)
-
-    def update_heartrate(self, heartrate):
-        """
-        Update the GUI with the latest heartrate.
-        """
-        pass
-
-    def update_moving_average_heartrate(self, moving_average_heartrate):
-        """
-        Update the GUI with the latest moving average heartrate.
-        """
-        pass
-
-    def update_framerate(self, framerate):
-        """
-        Update the GUI with the latest framerate.
-        """
-        pass
-
-    def update_bounding_boxes(self, bounding_boxes):
-        """
-        Update the GUI with the latest bounding boxes.
-        """
-        pass
