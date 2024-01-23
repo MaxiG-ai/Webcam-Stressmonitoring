@@ -1,0 +1,1 @@
+MAIN_STYLE_SHEET = "background-color: #282828; color: #ffffff"

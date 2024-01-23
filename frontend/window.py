@@ -1,13 +1,11 @@
-import numpy as np
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
-from threading import Thread
-import time
 
 from backend.backend_interface import BackendInterface
 
 from frontend.video import Video
 from frontend.results import Results
 from frontend.settings import Settings
+from .util.css_styles import MAIN_STYLE_SHEET
 
 
 INITIAL_WINDOW_WIDTH = 1280
@@ -21,6 +19,7 @@ class Window(QWidget):
         super().__init__()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT)
+        self.setStyleSheet(MAIN_STYLE_SHEET)
 
         self.video = Video(parent=self, backend=backend)
         self.sidebar_widget = QWidget()
